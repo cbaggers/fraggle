@@ -9,10 +9,7 @@
                          &uniform (now :float)
                          (mouse :vec2) (mouse-norm :vec2) (mouse-buttons :vec2)
                          (screen-res :vec2))
-  (v! (x mouse-norm) (x mouse-buttons) (y mouse-norm) 1)
-  (v3! (mod (x uv) (11to01 (sin now))))
-  ;;uv
-  )
+  (v! (x mouse-norm) (x mouse-buttons) (y mouse-norm) 1))
 
 
 (def-g-> draw-fraggle ()
