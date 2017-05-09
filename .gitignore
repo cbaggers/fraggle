@@ -1,0 +1,4 @@
+media/GnawTheGoblin/*
+*.FASL
+*.fasl
+*.lisp-temp
