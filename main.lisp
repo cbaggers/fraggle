@@ -1,18 +1,14 @@
 (in-package :fraggle)
 
-
 (defun-g fraggle-quad-vert ((pos :vec2))
   (values (v! pos 0 1)
           (* (+ pos (v2! 1f0)) 0.5)))
 
 (defun-g fraggle-quad-frag ((uv :vec2)
-                         &uniform (now :float)
-                         (mouse :vec2) (mouse-norm :vec2) (mouse-buttons :vec2)
-                         (screen-res :vec2))
-  (v! (x mouse-norm) (x mouse-buttons) (y mouse-norm) 1)
-  (v3! (mod (x uv) (11to01 (sin now))))
-  ;;uv
-  )
+                            &uniform (now :float)
+                            (mouse :vec2) (mouse-norm :vec2) (mouse-buttons :vec2)
+                            (screen-res :vec2))
+  (v! (x mouse-norm) (x mouse-buttons) (y mouse-norm) 1))
 
 
 (def-g-> draw-fraggle ()
