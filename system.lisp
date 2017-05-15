@@ -47,3 +47,18 @@
 
   (defun reset-time ()
     (setf offset (get-internal-real-time))))
+
+
+;; blend-color
+
+(defun-g blend ((a :float) (b :float))
+  (+ (* a (- 1 b)) b))
+
+(defun-g blend ((a :vec2) (b :vec2))
+  (+ (* a (- (v2! 1) b)) b))
+
+(defun-g blend ((a :vec3) (b :vec3))
+  (+ (* a (- (v3! 1) b)) b))
+
+(defun-g blend ((a :vec4) (b :vec4))
+  (+ (* a (- (v4! 1) b)) b))
