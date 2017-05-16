@@ -51,14 +51,19 @@
 
 ;; blend-color
 
-(defun-g blend ((a :float) (b :float))
-  (+ (* a (- 1 b)) b))
+(defun-g blend ((src :float) (dst :float))
+  (+ src (* dst (- 1f0 src))))
 
-(defun-g blend ((a :vec2) (b :vec2))
-  (+ (* a (- (v2! 1) b)) b))
+(defun-g blend ((src :vec2) (dst :vec2))
+  (+ src (* dst (- (v2! 1f0) src))))
 
-(defun-g blend ((a :vec3) (b :vec3))
-  (+ (* a (- (v3! 1) b)) b))
+(defun-g blend ((src :vec3) (dst :vec3))
+  (+ src (* dst (- (v3! 1f0) src))))
 
-(defun-g blend ((a :vec4) (b :vec4))
-  (+ (* a (- (v4! 1) b)) b))
+(defun-g blend ((src :vec4) (dst :vec4))
+  (let ((src-rgb (s~ src :xyz))
+        (dst-rgb (s~ dst :xyz))
+        (src-alpha (w src))
+        (dst-alpha (w dst)))
+    (v! (+ src-rgb (* dst-rgb (- (v3! 1) src-rgb)))
+        (+ src-alpha (* dst-alpha (- 1f0 src-alpha))))))
