@@ -19,6 +19,18 @@
 (defun-g 11to01 ((x :vec4))
   (+ (v4! 0.5) (* 0.5 x)))
 
+(defun-g 01to11 ((x :float))
+  (- (* 2 x) 1))
+
+(defun-g 01to11 ((x :vec2))
+  (- (* 2 x) (v2! 1)))
+
+(defun-g 01to11 ((x :vec3))
+  (- (* 2 x) (v3! 1)))
+
+(defun-g 01to11 ((x :vec4))
+  (- (* 2 x) (v4! 1)))
+
 ;; blend-color
 
 (defun-g blend ((src :float) (dst :float))
