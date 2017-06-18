@@ -9,34 +9,33 @@
     ;; we need an gl-initialized-p function in cepl
     (unless cepl.context::*gl-context*
       (cepl:repl))
-    (skitter:listen-to (lambda (x y z)
-                         (declare (ignore z))
-                         (window-size-callback x y))
-                       (skitter:window 0) :size)
+    (listen-to (lambda (size &rest ignored)
+                 (declare (ignore ignored))
+                 (window-size-callback size))
+               (window 0) :size)
     (setf *initd* t)))
 
 ;; windows
 
-(defun window-size-callback (size-2d y)
-  (declare (ignore y))
+(defun window-size-callback (size-2d)
   (setf (viewport-resolution (current-viewport))
-        (v! (skitter:size-2d-vec size-2d))))
+        (v! size-2d)))
 
 ;; mouse
 
 (defun get-mouse-norm ()
-  (let ((pos (v2:/ (skitter:xy-pos-vec (skitter:mouse-pos (skitter:mouse 0)))
+  (let ((pos (v2:/ (mouse-pos (mouse 0))
                    (viewport-resolution (current-viewport)))))
     (v! (x pos) (- 1f0 (y pos)))))
 
 (defun get-mouse ()
-  (let ((pos (skitter:xy-pos-vec (skitter:mouse-pos (skitter:mouse 0))))
+  (let ((pos (mouse-pos (mouse 0)))
         (h (y (viewport-resolution (current-viewport)))))
     (v! (x pos) (- h (y pos)))))
 
 (defun get-mouse-buttons ()
-  (v! (if (skitter:mouse-down-p mouse.left (skitter:mouse 0)) 1f0 0f0)
-      (if (skitter:mouse-down-p mouse.right (skitter:mouse 0)) 1f0 0f0)))
+  (v! (if (mouse-down-p mouse.left) 1f0 0f0)
+      (if (mouse-down-p mouse.right) 1f0 0f0)))
 
 ;; time
 
