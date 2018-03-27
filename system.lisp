@@ -7,7 +7,7 @@
 (defun ensure-fraggle-initialized ()
   (unless *initd*
     ;; we need an gl-initialized-p function in cepl
-    (unless cepl.context::*gl-context*
+    (when (cepl.lifecycle:uninitialized-p)
       (cepl:repl))
     (skitter:listen-to (lambda (x y z)
                          (declare (ignore z))

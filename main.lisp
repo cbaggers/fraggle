@@ -12,7 +12,7 @@
   (v! (x mouse-norm) (x mouse-buttons) (y mouse-norm) 1))
 
 
-(def-g-> draw-fraggle ()
+(defpipeline-g draw-fraggle ()
   :vertex (fraggle-quad-vert :vec2)
   :fragment (fraggle-quad-frag :vec2))
 
