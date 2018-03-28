@@ -1,5 +1,11 @@
 (in-package :fraggle)
 
+;;
+;;============================================================
+;; Based on Maarten's fantastic 2D sdf function playground:
+;; https://www.shadertoy.com/view/4dfXDn
+;;============================================================
+;;
 
 ;;------------------------------------------------------------
 ;; Combine distance field functions
