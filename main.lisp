@@ -50,6 +50,62 @@
     (- alpha1 alpha2)))
 
 ;;------------------------------------------------------------
+;; Light & Shadow
+
+(defun-g cast-shadow ((fn (function (:vec2) :float))
+                      (p :vec2)
+                      (pos :vec2)
+                      (radius :float))
+  (let* ((dir (normalize (- pos p)))
+         ;; distance to light
+         (dl (length (- p pos)))
+         ;; fraction of light visible, starts at one radius
+         ;; (second half added in the end)
+         (lf (* radius dl))
+         ;; distance traveled
+         (dt 0.01))
+    (dotimes (i 64)
+      (let (;; distance to scene at current position
+            (sd (funcall fn (+ p (* dir dt)))))
+        ;; early out when this ray is guaranteed to be full shadow
+        (when (< sd (- radius))
+          (return 0.0))
+        ;; width of cone-overlap at light
+        ;; 0 in center, so 50% overlap: add one radius outside of loop to
+        ;; get total coverage.
+        ;; should be '(sd / dt) * dl', but '*dl' outside of loop
+        (setf lf (min lf (/ sd dt)))
+        ;; move ahead
+        (incf dt (max 1.0 (abs sd)))
+        (when (> dt dl)
+          (break))))
+    ;; multiply by dl to get the real projected overlap (moved out of loop)
+    ;; add one radius, before between -radius and + radius
+    ;; normalize to 1 ( / 2*radius)
+    (setf lf (clamp (/ (+ (* lf dl) radius) (* 2.0 radius))
+                    0.0
+                    1.0))
+    (setf lf (smoothstep 0.0 1.0 lf))
+    lf))
+
+(defun-g point-light ((fn (function (:vec2) :float))
+                     (p :vec2)
+                     (pos :vec2)
+                     (color :vec4)
+                     (dist :float)
+                     (range :float)
+                     (radius :float))
+  (let* (;; distance to light
+         (ld (length (- p pos))))
+    (if (> ld range)
+        (vec4 0.0)
+        (let* ((shad (cast-shadow fn p pos radius))
+               (fall (/ (- range ld) range))
+               (fall (* fall fall))
+               (source (mask-fill (circle (- p pos) radius))))
+          (* (+ (* shad fall) source)
+             color)))))
+;;------------------------------------------------------------
 ;; Distance Field Functions
 
 (defun-g circle ((p :vec2) (radius :float))
@@ -123,23 +179,36 @@
                             (screen-res :vec2))
   (let ((half-res (/ screen-res 2)))
     (flet ((func ((p :vec2))
-             (merge-simple
-              (mix (mix (circle p 180)
-                        (triangle (rotate-ccw p now)
-                                  180)
-                        (y mouse-norm))
-                   (rectangle p (v! 100 100) 10)
-                   (x mouse-norm))
-              (circle (translate p (- mouse half-res)) 50))))
-      (let* ((p (- (s~ gl-frag-coord :xy)
+             (mix (mix (circle p 80)
+                       (triangle (rotate-ccw p now)
+                                 80)
+                       (y mouse-norm))
+                  (semicircle (rotate-ccw p now)
+                              80 120 20)
+                  (saturate (* (x mouse-norm) 2)))))
+      (let* ((mouse-pos (- mouse half-res))
+             (p (- (s~ gl-frag-coord :xy)
                    half-res))
-             (p (* p 1)))
-        (mix (mix (mix (v! 0.03 0.03 0.04 1) (v! 0.7 0 0 1)
-                       (mask-border-outer (func p) 3))
-                  (v! 0 0.1 0.8 1)
-                  (mask-border-inner (func p) 3))
-             (v! 0 0 0 0)
-             (mask-fill (func p)))))))
+             (p (* p 1))
+             (dist (func p))
+             (light (point-light #'func
+                                p
+                                mouse-pos
+                                (vec4 0.75 1.0 0.5 1.0)
+                                dist
+                                250.0
+                                6.0)))
+        (mix
+         (mix
+          (mix
+           (+ (v! 0.03 0.03 0.04 1)
+              light)
+           (v! 0.7 0 0 1)
+           (mask-border-outer dist 3))
+          (v! 0 0.1 0.8 1)
+          (mask-border-inner dist 3))
+         (v! 0 0 0 0)
+         (mask-fill dist))))))
 
 
 (defpipeline-g draw-fraggle ()
