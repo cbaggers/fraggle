@@ -160,3 +160,13 @@
 (def-simple-main-loop fraggle
     (:on-start #'ensure-fraggle-initialized)
   (step-fraggle))
+
+;;------------------------------------------------------------
+
+(defun fraggle-main ()
+  (fraggle :start))
+
+(def-shipping-manifest :fraggle fraggle-main
+  :compression -1
+  :libs-to-include (cl-soil::soil
+                    (sdl2::libsdl2 :recur)))

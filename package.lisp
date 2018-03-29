@@ -8,4 +8,5 @@
                 :camera-viewport)
   (:use #:cl #:temporal-functions #:cepl #:named-readtables
         #:vari #:rtg-math :rtg-math.base-maths
-        #:cepl.skitter #:structy-defclass #:nineveh))
+        #:cepl.skitter #:structy-defclass #:nineveh
+        #:shipshape))
