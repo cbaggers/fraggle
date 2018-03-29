@@ -191,10 +191,14 @@
                    half-res))
              (p (* p 1))
              (dist (func p))
+             (light-col (apply-luminance
+                         #'(rgb->luma-bt601 :vec4)
+                         1
+                         (vec4 0.75 1.0 0.5 1.0)))
              (light (point-light #'func
                                 p
                                 mouse-pos
-                                (vec4 0.75 1.0 0.5 1.0)
+                                light-col
                                 dist
                                 250.0
                                 6.0)))
