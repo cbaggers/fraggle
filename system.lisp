@@ -3,12 +3,24 @@
 ;; init
 
 (defvar *initd* nil)
+(defvar *sdl2-pads* nil)
+
+(defun init-pads (ids)
+  (setf *sdl2-pads*  (make-array 10 :initial-element nil))
+  (sdl2-game-controller-db:load-db)
+  (loop :for id :in ids :do
+     (unless (aref *sdl2-pads* id)
+       (setf (aref *sdl2-pads* id)
+             (sdl2:game-controller-open id))))
+  (skitter.sdl2:enable-background-joystick-events))
 
 (defun ensure-fraggle-initialized ()
   (unless *initd*
     ;; we need an gl-initialized-p function in cepl
     (when (cepl.lifecycle:uninitialized-p)
       (cepl:repl))
+    (unless *sdl2-pads*
+      (init-pads '(0)))
     (listen-to (lambda (size &rest ignored)
                  (declare (ignore ignored))
                  (window-size-callback size))

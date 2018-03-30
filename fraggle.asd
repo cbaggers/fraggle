@@ -10,7 +10,7 @@
                            #:classimp #:fn #:named-readtables #:cl-fad
                            #:temporal-functions #:dendrite #:disposable
                            #:structy-defclass #:swank.live
-                           #:dirt #:nineveh)
+                           #:dirt #:nineveh #:sdl2-game-controller-db)
   :components ((:file "package")
                (:file "system")
                (:file "misc-gpu-funcs")
