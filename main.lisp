@@ -2,50 +2,23 @@
 
 ;;------------------------------------------------------------
 
-(define-pgraph woop (:range)
-    (i (now :float))
-  (let* ((ang (* i 0.01))
-         (disp (* (vec2 (sin ang) (cos ang))
-                  (* i 0.002))))
-    (vec3 (x disp)
-          (* (+ 40 (* 2 (cos (* (+ (* 0.1 i) now) 0.001))))
-             (sin (* 0.1 i)))
-          (y disp))))
-
-(define-pgraph boop (:height-color)
+(define-pgraph plain (:height-color)
     (coord (now :float))
-  (let* ((now (* now 0.1))
-         (pos (- coord (vec2 100)))
-         ;;
-         (dist (merge-smooth
-                (merge-smooth (triangle pos
-                                        50)
-                              (circle (- pos (* (vec2 (sin (* now 0.18))
-                                                      (* (cos (* 1 now)) 1.4))
-                                                60))
-                                      10)
-                              10f0)
-                (circle (- pos (* (vec2 (sin now)
-                                        (cos now))
-                                  50))
-                        20)
-                10))
-         (dist-col (vec4 dist))
-         ;;
-         (masked (mask-fill dist))
-         (masked-col (mix (vec4 0)
-                          (vec4 0.7)
-                          masked))
-         ;;
-         (final-val masked)
-         (final-col masked-col))
-    ;;
-    (values dist
-            masked-col)))
-
-(define-pgraph plain (:height)
-    (coord (at :float))
-  at)
+  (let* ((time (/ now 1000))
+         (height 10)
+         (wave (- (max (* (log (* (- (x coord) (+ 100 (* 120 (sin time))))
+                                  0.5))
+                          5)
+                       0)
+                  10))
+         (val (max (* 2 (+ (* 10 (perlin-noise (* coord 0.04)))
+                           (* 6 (perlin-noise (* coord 0.09)))))
+                   wave)))
+    (values
+     val
+     (mix (v! 0 0.2 0.4 0)
+          (v! 0.3 0.3 0.3 0)
+          (step wave (- val 0.1))))))
 
 ;;------------------------------------------------------------
 
@@ -74,34 +47,17 @@
 (defun step-fraggle ()
   (update-controls)
   (nineveh:as-frame
-    ;; (woop *pos*
-    ;;       *dir*
-    ;;       :min 0
-    ;;       :max 200000
-    ;;       :point-size 1.3
-    ;;       :point-color (v! 0.1 0.1 0.19 1)
-    ;;       :now (float (now) 0f0))
-    (boop *pos*
-          *dir*
-          :x-min 0
-          :x-max 200
-          :y-min 0
-          :y-max 200
-          :by 1
-          :point-color (v! 0.1 0.1 0.19 1)
-          :now (* 0.01 (now))
-          :spacing 1.4)
-
     (plain *pos*
           *dir*
           :x-min 0
           :x-max 200
           :y-min 0
           :y-max 200
-          :by 1
-          :point-color (v! 0.2 0.01 0.01 1)
-          :at 0.0
-          :spacing 1.4)))
+          :by 0.7
+          :point-color (v! 0.3 0.3 0.3 0)
+          :point-size 0.4
+          :spacing 3.4
+          :now (now))))
 
 
 (def-simple-main-loop fraggle
