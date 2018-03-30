@@ -42,7 +42,7 @@
 (let ((offset 0))
 
   (defun now ()
-    (- (get-internal-real-time) offset))
+    (float (- (get-internal-real-time) offset) 0f0))
 
   (defun reset-time ()
     (setf offset (get-internal-real-time))))
