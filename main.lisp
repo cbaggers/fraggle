@@ -5,17 +5,19 @@
 (define-pgraph plain (:height-color)
     (coord (now :float))
   (let* ((time (/ now 1000))
-         (height 10)
+         (height 5)
          (wave (- (max (* (log (* (- (x coord) (+ 100 (* 120 (sin time))))
                                   0.5))
-                          5)
+                          (* height 0.5))
                        0)
-                  10))
-         (val (max (* 2 (+ (* 10 (perlin-noise (* coord 0.04)))
-                           (* 6 (perlin-noise (* coord 0.09)))))
-                   wave)))
+                  height))
+         (val (min (max (* 2 (+ (* 10 (perlin-noise (* coord 0.04)))
+                                (* 6 (perlin-noise (* coord 0.09)))))
+                        wave
+                        -3)
+                   7)))
     (values
-     val
+     (* val 1.3)
      (mix (v! 0 0.2 0.4 0)
           (v! 0.3 0.3 0.3 0)
           (step wave (- val 0.1))))))
@@ -76,9 +78,8 @@
           :y-min 0
           :y-max 200
           :by 0.7
-          :point-color (v! 0.3 0.3 0.3 0)
-          :point-size 0.4
-          :spacing 3.4
+          :point-size 1
+          :spacing 1.8
           :now (now))))
 
 
