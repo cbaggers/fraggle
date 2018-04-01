@@ -16,11 +16,13 @@
     (flet ((func ((p :vec2))
              (merge-simple
               (merge-simple
-               (circle (translate p (v! 200 150)) 80)
+               (hexagon (translate p (v! 200 150)) 80)
                (triangle (rotate-ccw p now)
                          10))
               (semicircle (rotate-ccw p (* 0.5 now))
-                          80 120 20))))
+                          80
+                          (radians 120)
+                          20))))
       (let* ((mouse-pos (- mouse half-res))
              (p (- (s~ gl-frag-coord :xy)
                    half-res))
