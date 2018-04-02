@@ -13,3 +13,7 @@
 (uiop:define-package :sdf
     (:use :nineveh.sdf.2d)
   (:reexport :nineveh.sdf.2d))
+
+(uiop:define-package :tvm
+    (:use :tiling-viewport-manager)
+  (:reexport :tiling-viewport-manager))

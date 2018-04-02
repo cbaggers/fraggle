@@ -71,13 +71,13 @@
            :img *img*
            :ssbo *ssbo*)
     (when (mouse-down-p mouse.left)
-      (let ((frame (frame-at-point (mouse-pos (mouse)))))
-        (when (not (eq frame *last-at-point*))
-          (print frame)
-          (setf *last-at-point* frame))))
+      (multiple-value-bind (frame changed)
+          (tvm:focus-frame-at-point (mouse-pos (mouse)))
+        (when changed
+          (print frame))))
     (clear)
-    (tvp-layout)
-    (tvp-draw)))
+    (tvm:tvm-layout)
+    (tvm:tvm-draw)))
 
 
 (def-simple-main-loop fraggle
