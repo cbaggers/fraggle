@@ -72,7 +72,8 @@
            :ssbo *ssbo*)
     (when (mouse-down-p mouse.left)
       (print (mouse-pos (mouse)))
-      (print (frame-at-point (mouse-pos (mouse)))))
+      (print (frame-at-point (mouse-pos (mouse))))
+      )
     (clear)
     (tvp-draw)))
 
@@ -173,20 +174,54 @@
 
 ;;------------------------------------------------------------
 
+(defvar *last-at-point* nil)
+
+(defun %splits-child-at-point (pos2 viewport self
+                               get set new)
+  (let ((v (funcall get pos2))
+        (dim (funcall get (viewport-resolution viewport)))
+        (new-orig (viewport-origin viewport)))
+    (loop
+       :for split-child :in (children self)
+       :for size := (slot-value split-child 'size)
+       :for point-size := (* dim size)
+       :when (< v point-size)
+       :do
+       (return (values split-child
+                       (make-viewport
+                        (funcall new (viewport-resolution viewport)
+                                 point-size)
+                        new-orig)
+                       (funcall new pos2 v)))
+       :else :do
+       (funcall set new-orig (+ (funcall get new-orig) point-size))
+       (decf v point-size)
+       :finally (error "Not in viewport ~a ~a" pos2 viewport))))
+
+(defgeneric schild-at-point (pos2 viewport thing)
+  (:method (pos2 viewport (self vsplit))
+    (flet ((getv (v2) (y v2))
+           (setv (v2 val) (setf (y v2) val))
+           (newv (v2 val) (v! (x v2) val)))
+      (%splits-child-at-point pos2 viewport self #'getv #'setv #'newv)))
+  (:method (pos2 viewport (self hsplit))
+    (flet ((getv (v2) (x v2))
+           (setv (v2 val) (setf (x v2) val))
+           (newv (v2 val) (v! val (y v2))))
+      (%splits-child-at-point pos2 viewport self #'getv #'setv #'newv))))
+
 (defun %frame-at-point (pos2 viewport thing)
   ;; assumes pos2 is within viewport
   (etypecase thing
     (frame-root (%frame-at-point pos2 viewport (frame thing)))
     (frame (with-slots (child) thing
              (etypecase child
-               (split (%frame-at-point pos2 viewport  child))
+               (split (%frame-at-point pos2 viewport child))
                (target thing))))
-    (vsplit
+    (split
      (multiple-value-bind (split-child new-viewport new-pos2)
-         (split-child-at-point pos2 viewport thing)
+         (schild-at-point pos2 viewport thing)
        (%frame-at-point new-pos2 new-viewport (frame split-child))))))
-
-(defvar *last-at-point* nil)
 
 (defun frame-at-point (pos2)
   (let* ((viewport (current-viewport))
@@ -201,30 +236,6 @@
          (result (%frame-at-point pos2 viewport *default-root*)))
     (setf *last-at-point* result)
     result))
-
-(defgeneric split-child-at-point (pos2 viewport thing)
-  (:method (pos2 viewport (self vsplit))
-    (let ((y (y pos2)) ;; 308
-          (height (viewport-resolution-y viewport)) ;; 2158
-          (new-orig (viewport-origin viewport)))
-      (loop
-         :for split-child :in (children self)
-         :for size := (slot-value split-child 'size) ;; 0.50
-         :for point-size := (* height size) ;; 1079.0
-         :when (< y point-size)
-         :do
-         (return (values split-child
-                         (v! (x pos2) y)
-                         (make-viewport
-                          new-orig
-                          (list (viewport-resolution-x viewport)
-                                point-size))))
-         :else :do
-         (incf (y new-orig) point-size)
-         (decf y point-size)
-         :finally (error "Not in viewport ~a ~a" pos2 viewport))))
-  (:method (pos2 viewport (self hsplit))
-    (error "Implement me!")))
 
 ;;------------------------------------------------------------
 
@@ -247,27 +258,23 @@
     (frame-root nil)
     (t (find-compatible-split (parent thing) split-type))))
 
-(defun split-vertically (frame)
-  (check-type frame frame)
-  (let* ((split (find-compatible-split (parent frame) 'vsplit)))
-    (if split
-        (let* ((schild (parent frame))
-               (size (size schild))
-               (new-size (* size 0.5))
-               (child-pos (position schild (children split)))
-               (new-frame (make-instance 'frame :child (child frame)))
-               (new-child (make-instance 'split-child
-                                         :parent split
-                                         :size new-size
-                                         :frame new-frame)))
-          (assert child-pos () "BUG")
-          (setf (size schild) new-size)
-          (setf (children split)
-                (append (subseq (children split) 0 (1+ child-pos))
-                        (list new-child)
-                        (subseq (children split) (1+ child-pos)))))
-        (fresh-split frame 'vsplit)))
-  frame)
+(defun split-exisiting (frame split)
+  (let* ((schild (parent frame))
+         (size (size schild))
+         (new-size (* size 0.5))
+         (child-pos (position schild (children split)))
+         (new-frame (make-instance 'frame :child (child frame)))
+         (new-child (make-instance 'split-child
+                                   :parent split
+                                   :size new-size
+                                   :frame new-frame)))
+    (assert child-pos () "BUG")
+    (setf (parent new-frame) new-child)
+    (setf (size schild) new-size)
+    (setf (children split)
+          (append (subseq (children split) 0 (1+ child-pos))
+                  (list new-child)
+                  (subseq (children split) (1+ child-pos))))))
 
 (defun fresh-split (frame split-type)
   (check-type frame frame)
@@ -292,6 +299,20 @@
           (children split) (list schild0 schild1)
           (child frame) split)))
 
+(defun %split (frame kind)
+  (check-type frame frame)
+  (let* ((split (find-compatible-split (parent frame) kind)))
+    (if split
+        (split-exisiting frame split)
+        (fresh-split frame kind)))
+  frame)
+
+(defun split-vertically (frame)
+  (%split frame 'vsplit))
+
+(defun split-horizontally (frame)
+  (%split frame 'hsplit))
+
 ;;------------------------------------------------------------
 
 ;; internal only, shouldnt be extended
@@ -311,7 +332,7 @@
            (orig-height (viewport-resolution-y new-viewport))
            (rx (viewport-resolution-x new-viewport))
            (ox (viewport-origin-x new-viewport))
-           (oy orig-height))
+           (oy (+ (viewport-origin-y new-viewport) orig-height)))
       (loop :for split-child :in children :do
          (with-slots (size) split-child
            (let* ((point-size (* size orig-height))
@@ -321,6 +342,20 @@
                     (list rx point-size)
                     (list ox new-oy)))
              (setf oy new-oy)
+             (setf avaliable-size (max 0 (- avaliable-size size)))))))))
+
+(defmethod draw ((this hsplit) new-viewport)
+  (with-slots (children) this
+    (let* ((avaliable-size 1.0)
+           (orig-width (viewport-resolution-x new-viewport))
+           (ry (viewport-resolution-y new-viewport))
+           (o (viewport-origin new-viewport)))
+      (loop :for split-child :in children :do
+         (with-slots (size) split-child
+           (let* ((point-size (* size orig-width)))
+             (draw (frame split-child)
+                   (make-viewport (vec2 point-size ry) o))
+             (incf (x o) point-size)
              (setf avaliable-size (max 0 (- avaliable-size size)))))))))
 
 (defmethod draw ((this color-target) new-viewport)
