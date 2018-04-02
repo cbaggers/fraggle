@@ -9,3 +9,7 @@
   (:use #:cl #:temporal-functions #:cepl #:named-readtables
         #:vari #:rtg-math :rtg-math.base-maths
         #:cepl.skitter #:structy-defclass #:nineveh))
+
+(uiop:define-package :sdf
+    (:use :nineveh.sdf.2d)
+  (:reexport :nineveh.sdf.2d))
