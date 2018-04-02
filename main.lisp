@@ -61,21 +61,24 @@
 
 
 (defun step-fraggle ()
+  (let ((fbo (tvm:target-fbo (tvm:target :phil))))
+    (when fbo
+      (with-fbo-bound (fbo)
+        (clear-fbo fbo)
+        (map-g #'draw-fraggle (get-quad-stream-v2)
+               :now (* (now) 0.001)
+               :mouse (get-mouse)
+               :mouse-norm (get-mouse-norm)
+               :mouse-buttons (get-mouse-buttons)
+               :screen-res (viewport-resolution (current-viewport))
+               :img *img*
+               :ssbo *ssbo*))))
   (as-frame
-    (map-g #'draw-fraggle (get-quad-stream-v2)
-           :now (* (now) 0.001)
-           :mouse (get-mouse)
-           :mouse-norm (get-mouse-norm)
-           :mouse-buttons (get-mouse-buttons)
-           :screen-res (viewport-resolution (current-viewport))
-           :img *img*
-           :ssbo *ssbo*)
     (when (mouse-down-p mouse.left)
       (multiple-value-bind (frame changed)
           (tvm:focus-frame-at-point (mouse-pos (mouse)))
         (when changed
           (print frame))))
-    (clear)
     (tvm:tvm-layout)
     (tvm:tvm-draw)))
 
