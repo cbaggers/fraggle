@@ -86,9 +86,10 @@
 ;;------------------------------------------------------------
 
 (defvar *default-root* nil)
-(defvar *targets* nil)
+(defvar *targets* (make-hash-table :test #'eq))
 
 (defun tvp-init ()
+  (setf *targets* (make-hash-table :test #'eq))
   (setf *default-root* (make-frame-root)))
 
 (defun make-frame-root ()
@@ -105,12 +106,29 @@
     frame))
 
 (defun make-default-child ()
-  (make-color-target))
+  (make-color-target :name :scratch))
+
+
+(defmethod initialize-instance :after ((inst target) &key name)
+  (assert (symbolp name) ()
+          "Target names must be symbols. Found ~s"
+          name))
 
 (defun register-target (target)
   (check-type target target)
-  (push target *targets*)
+  (assert (name target) ()
+          "Cannot use a target without a name: ~a"
+          target)
+  (let ((existing (target (name target))))
+    (unless (eq existing target)
+      (assert (not existing) ()
+              "Target named '~a' already exists in system. Cannot add ~a"
+              (name target) target)
+      (setf (gethash (name target) *targets*) target)))
   target)
+
+(defun target (name)
+  (values (gethash name *targets*)))
 
 ;; this the gonna be the screen or some plain or whatever
 ;; it recieves the layout change info an propegates. Its the
@@ -146,7 +164,8 @@
 ;; (by wrapping itself in a split-child)
 ;;
 ;; Users can only interact with targets
-(defclass target (frame-child) ())
+(defclass target (frame-child)
+  ((name :initform nil :initarg :name :reader name)))
 
 (defclass sampler-target (target)
   ((sampler :initarg :sampler :accessor sampler)))
@@ -161,7 +180,7 @@
     color3))
 
 (defvar *default-color-cycle* 0)
-(defun make-color-target (&optional color)
+(defun make-color-target (&key name color)
   (check-type color (or null vec3))
   (let ((cols nineveh.color::*boytons-11-rarely-confused-colors*))
     (register-target
@@ -171,7 +190,8 @@
                  (elt cols
                       (setf *default-color-cycle*
                             (mod (1+ *default-color-cycle*)
-                                 (length cols)))))))))
+                                 (length cols)))))
+      :name name))))
 
 ;;------------------------------------------------------------
 
@@ -402,3 +422,9 @@
 
 (defun tvp-draw ()
   (draw *default-root* (current-viewport)))
+
+(defmethod print-object ((obj target) stream)
+  (print-unreadable-object (obj stream :type T)
+    (with-slots (name) obj
+      (format stream "~@[:NAME ~a~]" name)))
+  obj)
