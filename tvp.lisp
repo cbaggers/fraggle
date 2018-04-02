@@ -56,8 +56,13 @@
 (defstruct (tvp-system (:constructor %make-tvp-system))
   (root (error "Bug: tvp-system without a root") :type tvp-root)
   (targets (make-hash-table :test #'eq)
-           :type hash-table))
+           :type hash-table)
+  (draw-array (make-draw-array)
+              :type (array (or null draw-pair) (*))))
 
+(defstruct draw-pair
+  (target (error "Bug: draw-pair without target") :type target)
+  (viewport (error "Bug: draw-pair without viewport") :type viewport))
 
 ;;------------------------------------------------------------
 ;; Globals
@@ -121,6 +126,38 @@
 (defmethod print-object ((obj tvp-root) stream)
   (print-unreadable-object (obj stream :type T :identity t))
   obj)
+
+(defun make-draw-array ()
+  (make-array 30 :element-type '(or null draw-pair)
+              :fill-pointer 0
+              :adjustable t
+              :initial-element nil))
+
+(defun reset-draw-array (system)
+  (let ((arr (tvp-system-draw-array system)))
+    (loop :for i :below (length arr) :do
+       (setf (aref arr i) nil)
+       (setf (fill-pointer arr) 0)))
+  system)
+
+(defun tvp-draw (&optional (system (default-tvp-system)))
+  (let ((arr (tvp-system-draw-array system)))
+    (loop :for draw-pair :across arr :do
+       (with-viewport (draw-pair-viewport draw-pair)
+         (draw (draw-pair-target draw-pair))))))
+
+(defun tvp-layout (&optional
+                     (system (default-tvp-system))
+                     (recalc-draw-list t))
+  (let ((arr (tvp-system-draw-array system)))
+    (flet ((enqueue (x)
+             (vector-push-extend x arr)))
+      (let ((enq (when recalc-draw-list
+                   (reset-draw-array system)
+                   #'enqueue)))
+        (layout (tvp-system-root system)
+                (current-viewport)
+                enq)))))
 
 ;;------------------------------------------------------------
 ;; Targets
@@ -390,17 +427,23 @@
         (warn "Cannot pop this frame as it is the only one."))))
 
 ;;------------------------------------------------------------
-;; Draw
+;; Layout
 
-(defgeneric draw (thing new-viewport))
+(defgeneric layout (thing new-viewport enqueue))
 
-(defmethod draw ((this tvp-root) new-viewport)
-  (draw (tvp-root-frame this) new-viewport))
+(defmethod layout ((this tvp-root) new-viewport enqueue)
+  (layout (tvp-root-frame this) new-viewport enqueue))
 
-(defmethod draw ((this frame) new-viewport)
-  (draw (frame-child this) new-viewport))
+(defmethod layout ((this frame) new-viewport enqueue)
+  (if (typep (frame-child this) 'target)
+      (when enqueue
+        (funcall enqueue
+                 (make-draw-pair
+                  :target (frame-child this)
+                  :viewport new-viewport)))
+      (layout (frame-child this) new-viewport enqueue)))
 
-(defmethod draw ((this vsplit) new-viewport)
+(defmethod layout ((this vsplit) new-viewport enqueue)
   (let* ((avaliable-size 1.0)
          (orig-height (viewport-resolution-y new-viewport))
          (rx (viewport-resolution-x new-viewport))
@@ -409,31 +452,33 @@
     (loop :for split-child :across (vsplit-children this) :do
        (let* ((size (split-child-size split-child))
               (point-size (* size orig-height))
-              (new-oy (- oy point-size)))
-         (draw (split-child-frame split-child)
-               (make-viewport
-                (list rx point-size)
-                (list ox new-oy)))
+              (new-oy (- oy point-size))
+              (vp (make-viewport
+                   (list rx point-size)
+                   (list ox new-oy))))
+         (setf (split-child-viewport split-child) vp)
+         (layout (split-child-frame split-child) vp enqueue)
          (setf oy new-oy)
          (setf avaliable-size (max 0 (- avaliable-size size)))))))
 
-(defmethod draw ((this hsplit) new-viewport)
+(defmethod layout ((this hsplit) new-viewport enqueue)
   (let* ((avaliable-size 1.0)
          (orig-width (viewport-resolution-x new-viewport))
          (ry (viewport-resolution-y new-viewport))
          (o (viewport-origin new-viewport)))
     (loop :for split-child :across (hsplit-children this) :do
        (let* ((size (split-child-size split-child))
-              (point-size (* size orig-width)))
-         (draw (split-child-frame split-child)
-               (make-viewport (vec2 point-size ry) o))
+              (point-size (* size orig-width))
+              (vp (make-viewport (vec2 point-size ry) o)))
+         (setf (split-child-viewport split-child) vp)
+         (layout (split-child-frame split-child) vp enqueue)
          (incf (x o) point-size)
          (setf avaliable-size (max 0 (- avaliable-size size)))))))
 
 ;;------------------------------------------------------------
+;; Draw
 
-(defun tvp-draw (&optional (system (default-tvp-system)))
-  (draw (tvp-system-root system) (current-viewport)))
+(defgeneric draw (target))
 
 ;;------------------------------------------------------------
 ;; Color Target
@@ -467,8 +512,7 @@
 (defun %make-default-target (name)
   (%make-color-target name (v! 0.03 0.03 0.05)))
 
-(defmethod draw ((this color-target) new-viewport)
-  (with-viewport new-viewport
-    (with-slots (color) this
-      (map-g #'color-target-pipeline (nineveh:get-quad-stream-v2)
-             :color3 color))))
+(defmethod draw ((this color-target))
+  (with-slots (color) this
+    (map-g #'color-target-pipeline (nineveh:get-quad-stream-v2)
+           :color3 color)))

@@ -76,6 +76,7 @@
           (print frame)
           (setf *last-at-point* frame))))
     (clear)
+    (tvp-layout)
     (tvp-draw)))
 
 
