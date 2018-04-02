@@ -14,4 +14,5 @@
   :components ((:file "package")
                (:file "system")
                (:file "misc-gpu-funcs")
-               (:file "main")))
+               (:file "main")
+               (:file "tvp")))
