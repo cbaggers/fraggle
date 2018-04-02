@@ -69,39 +69,266 @@
            :mouse-buttons (get-mouse-buttons)
            :screen-res (viewport-resolution (current-viewport))
            :img *img*
-           :ssbo *ssbo*)))
+           :ssbo *ssbo*)
+    (when (mouse-down-p mouse.left)
+      (print (mouse-pos (mouse)))
+      (print (frame-at-point (mouse-pos (mouse)))))
+    (clear)
+    (tvp-draw)))
 
 
 (def-simple-main-loop fraggle
     (:on-start #'ensure-fraggle-initialized)
   (step-fraggle))
 
+;;------------------------------------------------------------
 
+(defvar *default-root* nil)
+(defvar *targets* nil)
 
+(defun tvp-init ()
+  (setf *default-root* (make-frame-root)))
+
+(defun make-frame-root ()
+  (let ((root (make-instance 'frame-root)))
+    (setf (frame root) (make-frame root))
+    root))
+
+(defun make-frame (parent &optional child)
+  (check-type child (or null frame-child))
+  (let ((frame (make-instance 'frame :parent parent)))
+    (with-slots ((frame-child child)) frame
+      (setf frame-child
+            (or child (make-default-child))))
+    frame))
+
+(defun make-default-child ()
+  (make-color-target))
+
+(defun register-target (target)
+  (check-type target target)
+  (push target *targets*)
+  target)
 
 ;; this the gonna be the screen or some plain or whatever
 ;; it recieves the layout change info an propegates. Its the
 ;; only thign with a concrete (non relative) size
-(defclass frame-root () (frame))
+(defclass frame-root ()
+  ((frame :initarg :frame :accessor frame)))
 
 ;; Fills whatever it is in an can hold a single child
 (defclass frame ()
-  (child))
+  ((parent :initarg :parent :accessor parent)
+   (child :initarg :child :accessor child)))
 
 ;; the child of a frame can be a split or a target
-(defclass frame-child () (parent))
+(defclass frame-child () ())
 
-;; a split can only hold 'split-child'ren, they contain
+;; a split can only hold 'split-child'ren, those contain
 ;; the info on how the space is divided and *must* hold
-;; a frame.
-(defclass split (frame-child) (children))
+;; a frame. A split *must* have at least 2 children.
+(defclass split (frame-child)
+  ((parent :initarg :parent :reader parent)
+   (children :initarg :children :accessor children)))
 (defclass vsplit (split) ())
 (defclass hsplit (split) ())
-(defclass split-child () (pos frame))
+(defclass split-child ()
+  ((parent :initarg :parent :accessor parent)
+   (size :initarg :size :accessor size)
+   (frame :initarg :frame :accessor frame)))
 
 ;; The only thing that can contain graphics. If you split this
 ;; it walks up to the nearest split and adds a new split-child.
 ;; if it hits a frame first then it replaces that frames child
 ;; with a split and makes itself one of the split's children
 ;; (by wrapping itself in a split-child)
-(defclass target (frame-child) (sampler))
+;;
+;; Users can only interact with targets
+(defclass target (frame-child) ())
+
+(defclass sampler-target (target)
+  ((sampler :initarg :sampler :accessor sampler)))
+
+(defclass color-target (target)
+  ((color :initarg :color :accessor color)))
+
+(defpipeline-g color-target-pipeline ()
+  (lambda-g ((vert :vec2))
+    (v! vert 0 1))
+  (lambda-g (&uniform (color3 :vec3))
+    color3))
+
+(defvar *default-color-cycle* 0)
+(defun make-color-target (&optional color)
+  (check-type color (or null vec3))
+  (let ((cols nineveh.color::*boytons-11-rarely-confused-colors*))
+    (register-target
+     (make-instance
+      'color-target
+      :color (or color
+                 (elt cols
+                      (setf *default-color-cycle*
+                            (mod (1+ *default-color-cycle*)
+                                 (length cols)))))))))
+
+;;------------------------------------------------------------
+
+(defun %frame-at-point (pos2 viewport thing)
+  ;; assumes pos2 is within viewport
+  (etypecase thing
+    (frame-root (%frame-at-point pos2 viewport (frame thing)))
+    (frame (with-slots (child) thing
+             (etypecase child
+               (split (%frame-at-point pos2 viewport  child))
+               (target thing))))
+    (vsplit
+     (multiple-value-bind (split-child new-viewport new-pos2)
+         (split-child-at-point pos2 viewport thing)
+       (%frame-at-point new-pos2 new-viewport (frame split-child))))))
+
+(defvar *last-at-point* nil)
+
+(defun frame-at-point (pos2)
+  (let* ((viewport (current-viewport))
+         (ox (viewport-origin-x viewport))
+         (oy (viewport-origin-y viewport))
+         (pos2 (v! (clamp ox
+                          (+ ox (viewport-resolution-x viewport))
+                          (x pos2))
+                   (clamp oy
+                          (+ oy (viewport-resolution-y viewport))
+                          (y pos2))))
+         (result (%frame-at-point pos2 viewport *default-root*)))
+    (setf *last-at-point* result)
+    result))
+
+(defgeneric split-child-at-point (pos2 viewport thing)
+  (:method (pos2 viewport (self vsplit))
+    (let ((y (y pos2)) ;; 308
+          (height (viewport-resolution-y viewport)) ;; 2158
+          (new-orig (viewport-origin viewport)))
+      (loop
+         :for split-child :in (children self)
+         :for size := (slot-value split-child 'size) ;; 0.50
+         :for point-size := (* height size) ;; 1079.0
+         :when (< y point-size)
+         :do
+         (return (values split-child
+                         (v! (x pos2) y)
+                         (make-viewport
+                          new-orig
+                          (list (viewport-resolution-x viewport)
+                                point-size))))
+         :else :do
+         (incf (y new-orig) point-size)
+         (decf y point-size)
+         :finally (error "Not in viewport ~a ~a" pos2 viewport))))
+  (:method (pos2 viewport (self hsplit))
+    (error "Implement me!")))
+
+;;------------------------------------------------------------
+
+(defun switch-to-target (frame target)
+  (check-type frame frame)
+  (check-type target target)
+  (with-slots (child) frame
+    (assert (typep child 'target) ()
+            "Cannot switch frame to hold ~a as it holds the split ~a"
+            target child)
+    (setf child target)))
+
+;;------------------------------------------------------------
+
+(defun find-compatible-split (thing split-type)
+  (etypecase thing
+    (split (when (typep thing split-type)
+             thing))
+    (frame nil)
+    (frame-root nil)
+    (t (find-compatible-split (parent thing) split-type))))
+
+(defun split-vertically (frame)
+  (check-type frame frame)
+  (let* ((split (find-compatible-split (parent frame) 'vsplit)))
+    (if split
+        (let* ((schild (parent frame))
+               (size (size schild))
+               (new-size (* size 0.5))
+               (child-pos (position schild (children split)))
+               (new-frame (make-instance 'frame :child (child frame)))
+               (new-child (make-instance 'split-child
+                                         :parent split
+                                         :size new-size
+                                         :frame new-frame)))
+          (assert child-pos () "BUG")
+          (setf (size schild) new-size)
+          (setf (children split)
+                (append (subseq (children split) 0 (1+ child-pos))
+                        (list new-child)
+                        (subseq (children split) (1+ child-pos)))))
+        (fresh-split frame 'vsplit)))
+  frame)
+
+(defun fresh-split (frame split-type)
+  (check-type frame frame)
+  (check-type (child frame) target)
+  (let* ((target (child frame))
+         ;; we need at least 2 children for a split
+         ;; so we make 2 frames that both hold the same
+         ;; target. Do not share frames!
+         (split (make-instance split-type :parent frame))
+         (new-frame0 (make-instance 'frame :child target))
+         (schild0 (make-instance 'split-child
+                                 :parent split
+                                 :size 0.5
+                                 :frame new-frame0))
+         (new-frame1 (make-instance 'frame :child target))
+         (schild1 (make-instance 'split-child
+                                 :parent split
+                                 :size 0.5
+                                 :frame new-frame1)))
+    (setf (parent new-frame0) schild0
+          (parent new-frame1) schild1
+          (children split) (list schild0 schild1)
+          (child frame) split)))
+
+;;------------------------------------------------------------
+
+;; internal only, shouldnt be extended
+(defgeneric draw (thing new-viewport))
+
+(defmethod draw ((this frame-root) new-viewport)
+  (with-slots (frame) this
+    (draw frame new-viewport)))
+
+(defmethod draw ((this frame) new-viewport)
+  (with-slots (child) this
+    (draw child new-viewport)))
+
+(defmethod draw ((this vsplit) new-viewport)
+  (with-slots (children) this
+    (let* ((avaliable-size 1.0)
+           (orig-height (viewport-resolution-y new-viewport))
+           (rx (viewport-resolution-x new-viewport))
+           (ox (viewport-origin-x new-viewport))
+           (oy orig-height))
+      (loop :for split-child :in children :do
+         (with-slots (size) split-child
+           (let* ((point-size (* size orig-height))
+                  (new-oy (- oy point-size)))
+             (draw (frame split-child)
+                   (make-viewport
+                    (list rx point-size)
+                    (list ox new-oy)))
+             (setf oy new-oy)
+             (setf avaliable-size (max 0 (- avaliable-size size)))))))))
+
+(defmethod draw ((this color-target) new-viewport)
+  (with-viewport new-viewport
+    (with-slots (color) this
+      (map-g #'color-target-pipeline (nineveh:get-quad-stream-v2)
+             :color3 color))))
+;;------------------------------------------------------------
+
+(defun tvp-draw ()
+  (draw *default-root* (current-viewport)))
