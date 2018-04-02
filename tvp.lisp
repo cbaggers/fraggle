@@ -99,16 +99,12 @@
             target)
       sys)))
 
+;; replace this with cepl style current system stuff
 (defun default-tvp-system ()
   (or *default-tvp-system*
       (setf *default-tvp-system*
             (make-tvp-system))))
 
-;; replace this with cepl style current system stuff
-(defun default-root ()
-  (tvp-system-root (default-tvp-system)))
-(defun default-targets ()
-  (tvp-system-targets (default-tvp-system)))
 
 (defun tvp-reinit (&optional (system (default-tvp-system)))
   (let* ((root (make-tvp-root))
@@ -134,20 +130,30 @@
           "Target names must be symbols. Found ~s"
           name))
 
-(defun target (name)
-  (values (gethash name (default-targets))))
+(defun target (name &optional (system (default-tvp-system)))
+  (values (gethash name (tvp-system-targets system))))
 
-(defun register-target (target)
+(defun target-names (&optional (system (default-tvp-system)))
+  (let (names)
+    (maphash
+     (lambda (k v)
+       (declare (ignore v))
+       (push k names))
+     (tvp-system-targets system))
+    names))
+
+(defun register-target (target &optional (system (default-tvp-system)))
   (check-type target target)
   (assert (name target) ()
           "Cannot use a target without a name: ~a"
           target)
-  (let ((existing (target (name target))))
+  (let ((existing (target (name target) system)))
     (unless (eq existing target)
       (assert (not existing) ()
               "Target named '~a' already exists in system. Cannot add ~a"
               (name target) target)
-      (setf (gethash (name target) (default-targets)) target)))
+      (setf (gethash (name target) (tvp-system-targets system))
+            target)))
   target)
 
 (defmethod print-object ((obj target) stream)
@@ -251,7 +257,7 @@
                         (split-child-frame split-child))))))
 
 ;; {TODO} base on system
-(defun frame-at-point (pos2)
+(defun frame-at-point (pos2 &optional (system (default-tvp-system)))
   (let* ((viewport (current-viewport))
          (ox (viewport-origin-x viewport))
          (oy (viewport-origin-y viewport))
@@ -261,7 +267,7 @@
                    (clamp oy
                           (+ oy (viewport-resolution-y viewport))
                           (y pos2)))))
-    (%frame-at-point pos2 viewport (default-root))))
+    (%frame-at-point pos2 viewport (tvp-system-root system))))
 
 ;;------------------------------------------------------------
 
@@ -426,8 +432,8 @@
 
 ;;------------------------------------------------------------
 
-(defun tvp-draw ()
-  (draw (default-root) (current-viewport)))
+(defun tvp-draw (&optional (system (default-tvp-system)))
+  (draw (tvp-system-root system) (current-viewport)))
 
 ;;------------------------------------------------------------
 ;; Color Target
@@ -454,9 +460,9 @@
                                 (length cols)))))
      :name name)))
 
-(defun make-color-target (&key name color)
+(defun make-color-target (&key name color (system (default-tvp-system)))
   (check-type color (or null vec3))
-  (register-target (%make-color-target name color)))
+  (register-target (%make-color-target name color) system))
 
 (defun %make-default-target (name)
   (%make-color-target name (v! 0.03 0.03 0.05)))

@@ -76,8 +76,7 @@
           (print frame)
           (setf *last-at-point* frame))))
     (clear)
-    (tvp-draw)
-    ))
+    (tvp-draw)))
 
 
 (def-simple-main-loop fraggle
