@@ -71,9 +71,10 @@
            :img *img*
            :ssbo *ssbo*)
     (when (mouse-down-p mouse.left)
-      (print (mouse-pos (mouse)))
-      (print (frame-at-point (mouse-pos (mouse))))
-      )
+      (let ((frame (frame-at-point (mouse-pos (mouse)))))
+        (when (not (eq frame *last-at-point*))
+          (print frame)
+          (setf *last-at-point* frame))))
     (clear)
     (tvp-draw)))
 
@@ -129,7 +130,7 @@
 ;; the info on how the space is divided and *must* hold
 ;; a frame. A split *must* have at least 2 children.
 (defclass split (frame-child)
-  ((parent :initarg :parent :reader parent)
+  ((parent :initarg :parent :accessor parent)
    (children :initarg :children :accessor children)))
 (defclass vsplit (split) ())
 (defclass hsplit (split) ())
@@ -234,7 +235,6 @@
                           (+ oy (viewport-resolution-y viewport))
                           (y pos2))))
          (result (%frame-at-point pos2 viewport *default-root*)))
-    (setf *last-at-point* result)
     result))
 
 ;;------------------------------------------------------------
@@ -274,7 +274,8 @@
     (setf (children split)
           (append (subseq (children split) 0 (1+ child-pos))
                   (list new-child)
-                  (subseq (children split) (1+ child-pos))))))
+                  (subseq (children split) (1+ child-pos))))
+    frame))
 
 (defun fresh-split (frame split-type)
   (check-type frame frame)
@@ -297,14 +298,17 @@
     (setf (parent new-frame0) schild0
           (parent new-frame1) schild1
           (children split) (list schild0 schild1)
-          (child frame) split)))
+          (child frame) split)
+    new-frame0))
 
 (defun %split (frame kind)
   (check-type frame frame)
-  (let* ((split (find-compatible-split (parent frame) kind)))
-    (if split
-        (split-exisiting frame split)
-        (fresh-split frame kind)))
+  (let* ((split (find-compatible-split (parent frame) kind))
+         (new-frame (if split
+                        (split-exisiting frame split)
+                        (fresh-split frame kind))))
+    (when (eq frame *last-at-point*)
+      (setf *last-at-point* new-frame)))
   frame)
 
 (defun split-vertically (frame)
@@ -312,6 +316,37 @@
 
 (defun split-horizontally (frame)
   (%split frame 'hsplit))
+
+;;------------------------------------------------------------
+
+(defun %remove-frame (split frame)
+  (let* ((schild (parent frame))
+         (children (children split))
+         (child-pos (position schild children))
+         (new-children (remove schild children)))
+    (assert child-pos ()
+            "The frame ~a is not a decendent of ~a" frame split)
+    (if (= (length new-children) 1)
+        (let ((new-child (child (frame (first new-children))))
+              (new-parent (parent split)))
+          (check-type new-parent frame)
+          (when (typep new-child 'split)
+            (print "yay!")
+            (setf (parent new-child) new-parent))
+          (setf (child new-parent) new-child)
+          new-child)
+        (progn
+          (setf (children split) new-children)
+          (loop :for c :in new-children :do
+             (incf (size c) (/ (size schild) (length new-children))))
+          (frame (elt new-children (max 0 (1- child-pos))))))))
+
+(defun pop-frame (frame)
+  (check-type frame frame)
+  (let ((split (find-compatible-split (parent frame) 'split)))
+    (if split
+        (%remove-frame split frame)
+        (warn "Cannot pop this frame as it is the only one."))))
 
 ;;------------------------------------------------------------
 
