@@ -6,11 +6,21 @@
   :license "GPLv3"
   #+asdf-unicode :encoding #+asdf-unicode :utf-8
   :serial t
-  :depends-on (#:cepl.sdl2 #:cepl.camera #:cepl.skitter.sdl2
-                           #:classimp #:fn #:named-readtables #:cl-fad
-                           #:temporal-functions #:dendrite #:disposable
-                           #:structy-defclass #:swank.live
-                           #:dirt #:nineveh)
+  :depends-on (#:cepl.camera
+               #:cepl.sdl2
+               #:cepl.skitter.sdl2
+               #:cl-fad
+               #:classimp
+               #:dendrite
+               #:dirt
+               #:disposable
+               #:fn
+               #:named-readtables
+               #:nineveh
+               #:structy-defclass
+               #:swank.live
+               #:temporal-functions
+               #:tiling-viewport-manager)
   :components ((:file "package")
                (:file "system")
                (:file "misc-gpu-funcs")
